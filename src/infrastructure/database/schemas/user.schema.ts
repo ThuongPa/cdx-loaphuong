@@ -9,6 +9,9 @@ export class User {
   @Prop({ required: true })
   _id: string; // CUID
 
+  @Prop({ required: true })
+  userId: string; // User ID from auth service
+
   @Prop({ required: true, lowercase: true })
   email: string;
 
@@ -41,6 +44,7 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 // Indexes
 UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ userId: 1 }, { unique: true });
 UserSchema.index({ roles: 1 });
 UserSchema.index({ isActive: 1 });
 UserSchema.index({ lastSyncedAt: 1 });

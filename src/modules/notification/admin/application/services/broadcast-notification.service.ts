@@ -110,7 +110,7 @@ export class BroadcastNotificationService {
 
       // Get specific users
       if (broadcastDto.targetUsers && broadcastDto.targetUsers.length > 0) {
-        query._id = { $in: broadcastDto.targetUsers };
+        query.userId = { $in: broadcastDto.targetUsers };
       }
 
       // If no specific targeting, get all active users
@@ -124,6 +124,15 @@ export class BroadcastNotificationService {
 
       const users = await this.userModel.find(query).exec();
       this.logger.log(`Found ${users.length} target users from local database`);
+
+      // Debug: Check user data
+      if (users.length > 0) {
+        this.logger.log('User data debug:', {
+          userId: users[0].userId,
+          _id: users[0]._id,
+          hasUserId: !!users[0].userId,
+        });
+      }
 
       return users;
     } catch (error) {
@@ -141,7 +150,7 @@ export class BroadcastNotificationService {
       return {
         id: notificationId,
         _id: notificationId,
-        userId: user._id,
+        userId: user.userId,
         notificationId: announcement._id,
         title: announcement.title,
         body: announcement.body,
@@ -175,7 +184,7 @@ export class BroadcastNotificationService {
           // Create notification message
           const notificationMessage = {
             id: CuidUtil.generate(),
-            userId: user._id,
+            userId: user.userId,
             type: 'announcement',
             title: announcement.title,
             body: announcement.body,
