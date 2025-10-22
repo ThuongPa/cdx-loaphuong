@@ -1,0 +1,32 @@
+[
+  {
+    "_id": "category_1",
+    "name": "Building A",
+    "description": "Main building",
+    "type": "building",
+    "isActive": true,
+    "createdBy": "user_1",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "category_2",
+    "name": "Floor 1",
+    "description": "First floor",
+    "type": "floor",
+    "isActive": true,
+    "createdBy": "user_1",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "category_3",
+    "name": "Apartment 101",
+    "description": "Apartment 101",
+    "type": "apartment",
+    "isActive": true,
+    "createdBy": "user_1",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+]

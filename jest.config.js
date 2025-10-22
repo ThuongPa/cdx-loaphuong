@@ -1,0 +1,41 @@
+module.exports = {
+  displayName: 'Notification Service',
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  rootDir: '.',
+  testMatch: [
+    '<rootDir>/src/**/*.spec.ts',
+    '<rootDir>/test/**/*.spec.ts',
+    '<rootDir>/test/**/*.test.ts',
+  ],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.spec.ts',
+    '!src/**/*.interface.ts',
+    '!src/**/*.dto.ts',
+    '!src/**/*.enum.ts',
+    '!src/**/*.constant.ts',
+    '!src/main.ts',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
+    },
+  },
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+  moduleNameMapper: {
+    '^src/(.*)$': '<rootDir>/src/$1',
+    '^test/(.*)$': '<rootDir>/test/$1',
+  },
+  testTimeout: 30000,
+  verbose: true,
+  forceExit: true,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
+};

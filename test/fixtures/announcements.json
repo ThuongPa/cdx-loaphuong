@@ -1,0 +1,50 @@
+[
+  {
+    "_id": "announcement_1",
+    "title": "System Maintenance",
+    "body": "The system will be under maintenance from 2 AM to 4 AM",
+    "type": "announcement",
+    "priority": "normal",
+    "channels": ["push", "email", "inApp"],
+    "targetRoles": ["resident"],
+    "targetUsers": [],
+    "data": {},
+    "status": "draft",
+    "createdBy": "user_1",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "announcement_2",
+    "title": "Payment Received",
+    "body": "Your payment of $100 has been received",
+    "type": "payment",
+    "priority": "high",
+    "channels": ["push", "email"],
+    "targetRoles": [],
+    "targetUsers": ["user_3"],
+    "data": {
+      "amount": 100,
+      "currency": "USD"
+    },
+    "status": "sent",
+    "createdBy": "user_1",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "announcement_3",
+    "title": "Emergency Alert",
+    "body": "Fire alarm activated. Please evacuate immediately.",
+    "type": "emergency",
+    "priority": "urgent",
+    "channels": ["push", "email", "inApp"],
+    "targetRoles": ["resident"],
+    "targetUsers": [],
+    "data": {},
+    "status": "sent",
+    "createdBy": "user_1",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+]

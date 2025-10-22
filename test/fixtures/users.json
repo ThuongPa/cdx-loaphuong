@@ -1,0 +1,32 @@
+[
+  {
+    "_id": "user_1",
+    "email": "admin@example.com",
+    "phone": "+84901234567",
+    "roles": ["admin"],
+    "isActive": true,
+    "lastSyncedAt": "2024-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "user_2",
+    "email": "manager@example.com",
+    "phone": "+84901234568",
+    "roles": ["manager"],
+    "isActive": true,
+    "lastSyncedAt": "2024-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "user_3",
+    "email": "resident@example.com",
+    "phone": "+84901234569",
+    "roles": ["resident"],
+    "isActive": true,
+    "lastSyncedAt": "2024-01-01T00:00:00.000Z",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+]

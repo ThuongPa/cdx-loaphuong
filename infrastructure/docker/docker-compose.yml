@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: notification-mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: notification-service
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongodb-init.js:/docker-entrypoint-initdb.d/mongodb-init.js:ro
+    networks:
+      - notification-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes --requirepass redis123
+    volumes:
+      - redis_data:/data
+    networks:
+      - notification-network
+
+  # RabbitMQ Message Broker - REMOVED (Using self-hosted RabbitMQ)
+  # rabbitmq:
+  #   image: rabbitmq:3.12-management
+  #   container_name: notification-rabbitmq
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+  #   environment:
+  #     RABBITMQ_DEFAULT_USER: admin
+  #     RABBITMQ_DEFAULT_PASS: password123
+  #     RABBITMQ_DEFAULT_VHOST: /
+  #   volumes:
+  #     - rabbitmq_data:/var/lib/rabbitmq
+  #   networks:
+  #     - notification-network
+
+  # Novu (Optional for local development) - REMOVED (Using self-hosted Novu)
+  # novu:
+  #   image: novuhq/novu:latest
+  #   container_name: notification-novu
+  #   restart: unless-stopped
+  #   ports:
+  #     - '3001:3001'
+  #   environment:
+  #     NODE_ENV: development
+  #     PORT: 3001
+  #     MONGO_URL: mongodb://admin:password123@mongodb:27017/notification-service?authSource=admin
+  #     REDIS_URL: redis://:redis123@redis:6379
+  #   depends_on:
+  #     - mongodb
+  #     - redis
+  #   networks:
+  #     - notification-network
+
+  # Notification Service (Development)
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+    container_name: notification-service
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/notification-service?authSource=admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis123
+      RABBITMQ_URI: amqp://xMlbHAEswk95f17q:xqETMbrXPskYEnwL7VAVa1yYH3mkATkz@rabbitmq.cudanso.net:5672
+      NOVU_API_URL: https://novu-api.cudanso.net
+      NOVU_API_KEY: 0577ead5db58a9658edb29e68245bb0b
+      NOVU_APPLICATION_IDENTIFIER: LZcyj58XGj2v
+      AUTH_SERVICE_URL: http://localhost:3001
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ../../src:/app/src
+      - ../../test:/app/test
+    networks:
+      - notification-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  notification-network:
+    driver: bridge

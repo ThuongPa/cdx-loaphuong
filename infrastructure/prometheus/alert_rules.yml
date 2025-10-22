@@ -1,0 +1,123 @@
+groups:
+  - name: cdx-notification-service
+    rules:
+      - alert: NotificationServiceDown
+        expr: up{job="cdx-notification-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: notification-service
+        annotations:
+          summary: 'CDX Notification Service is down'
+          description: 'CDX Notification Service has been down for more than 1 minute'
+          runbook_url: 'https://docs.cdx.com/runbooks/notification-service-down'
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="cdx-notification-service",status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'High error rate in Notification Service'
+          description: 'Error rate is {{ $value }} errors per second'
+          runbook_url: 'https://docs.cdx.com/runbooks/high-error-rate'
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="cdx-notification-service"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'High response time in Notification Service'
+          description: '95th percentile response time is {{ $value }} seconds'
+          runbook_url: 'https://docs.cdx.com/runbooks/high-response-time'
+
+      - alert: HighMemoryUsage
+        expr: (nodejs_memory_usage_bytes{job="cdx-notification-service",type="heapUsed"} / nodejs_memory_usage_bytes{job="cdx-notification-service",type="heapTotal"}) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'High memory usage in Notification Service'
+          description: 'Memory usage is {{ $value | humanizePercentage }}'
+          runbook_url: 'https://docs.cdx.com/runbooks/high-memory-usage'
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="cdx-notification-service"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'High CPU usage in Notification Service'
+          description: 'CPU usage is {{ $value | humanizePercentage }}'
+          runbook_url: 'https://docs.cdx.com/runbooks/high-cpu-usage'
+
+      - alert: NotificationQueueBacklog
+        expr: notification_queue_size{job="cdx-notification-service"} > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'Notification queue backlog is high'
+          description: 'Queue {{ $labels.queue_name }} has {{ $value }} messages'
+          runbook_url: 'https://docs.cdx.com/runbooks/queue-backlog'
+
+      - alert: NotificationQueueCriticalBacklog
+        expr: notification_queue_size{job="cdx-notification-service"} > 5000
+        for: 1m
+        labels:
+          severity: critical
+          service: notification-service
+        annotations:
+          summary: 'Notification queue backlog is critical'
+          description: 'Queue {{ $labels.queue_name }} has {{ $value }} messages'
+          runbook_url: 'https://docs.cdx.com/runbooks/critical-queue-backlog'
+
+      - alert: LowNotificationSuccessRate
+        expr: rate(notifications_sent_total{job="cdx-notification-service",status="success"}[5m]) / rate(notifications_sent_total{job="cdx-notification-service"}[5m]) < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'Low notification success rate'
+          description: 'Success rate is {{ $value | humanizePercentage }}'
+          runbook_url: 'https://docs.cdx.com/runbooks/low-success-rate'
+
+      - alert: DatabaseConnectionFailure
+        expr: up{job="cdx-notification-service"} == 1 and rate(database_query_duration_seconds_count{job="cdx-notification-service"}[5m]) == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: notification-service
+        annotations:
+          summary: 'Database connection failure'
+          description: 'No database queries in the last 5 minutes'
+          runbook_url: 'https://docs.cdx.com/runbooks/database-connection-failure'
+
+      - alert: CacheConnectionFailure
+        expr: rate(cache_operations_total{job="cdx-notification-service"}[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: notification-service
+        annotations:
+          summary: 'Cache connection failure'
+          description: 'No cache operations in the last 5 minutes'
+          runbook_url: 'https://docs.cdx.com/runbooks/cache-connection-failure'
+
+      - alert: MessageQueueConnectionFailure
+        expr: rate(message_processing_duration_seconds_count{job="cdx-notification-service"}[5m]) == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: notification-service
+        annotations:
+          summary: 'Message queue connection failure'
+          description: 'No message processing in the last 5 minutes'
+          runbook_url: 'https://docs.cdx.com/runbooks/message-queue-failure'

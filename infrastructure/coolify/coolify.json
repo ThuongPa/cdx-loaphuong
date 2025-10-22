@@ -1,0 +1,179 @@
+{
+  "name": "cdx-notification-service",
+  "description": "CDX Loap Huong Notification Service",
+  "version": "1.0.0",
+  "type": "application",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "infrastructure/docker/Dockerfile",
+    "context": ".",
+    "args": {
+      "NODE_ENV": "production"
+    }
+  },
+  "deploy": {
+    "strategy": "blue-green",
+    "replicas": 2,
+    "resources": {
+      "requests": {
+        "cpu": "100m",
+        "memory": "256Mi"
+      },
+      "limits": {
+        "cpu": "500m",
+        "memory": "512Mi"
+      }
+    },
+    "healthCheck": {
+      "path": "/health",
+      "port": 3000,
+      "initialDelaySeconds": 30,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 3
+    },
+    "livenessProbe": {
+      "path": "/health",
+      "port": 3000,
+      "initialDelaySeconds": 30,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 3
+    },
+    "readinessProbe": {
+      "path": "/health",
+      "port": 3000,
+      "initialDelaySeconds": 5,
+      "periodSeconds": 5,
+      "timeoutSeconds": 3,
+      "failureThreshold": 3
+    }
+  },
+  "environment": {
+    "NODE_ENV": "production",
+    "PORT": "3000",
+    "LOG_LEVEL": "info",
+    "CORS_ORIGIN": "*",
+    "DATABASE_URI": "${DATABASE_URI}",
+    "DATABASE_NAME": "${DATABASE_NAME}",
+    "REDIS_HOST": "${REDIS_HOST}",
+    "REDIS_PORT": "${REDIS_PORT}",
+    "REDIS_PASSWORD": "${REDIS_PASSWORD}",
+    "REDIS_DB": "${REDIS_DB}",
+    "RABBITMQ_URL": "${RABBITMQ_URL}",
+    "RABBITMQ_EXCHANGE": "${RABBITMQ_EXCHANGE}",
+    "RABBITMQ_QUEUE": "${RABBITMQ_QUEUE}",
+    "NOVU_API_KEY": "${NOVU_API_KEY}",
+    "NOVU_APP_ID": "${NOVU_APP_ID}",
+    "NOVU_BACKEND_URL": "${NOVU_BACKEND_URL}",
+    "JWT_SECRET": "${JWT_SECRET}",
+    "JWT_EXPIRES_IN": "${JWT_EXPIRES_IN}",
+    "AUTH_SERVICE_URL": "${AUTH_SERVICE_URL}"
+  },
+  "secrets": ["DATABASE_URI", "REDIS_PASSWORD", "RABBITMQ_URL", "NOVU_API_KEY", "JWT_SECRET"],
+  "networking": {
+    "ports": [
+      {
+        "containerPort": 3000,
+        "protocol": "TCP",
+        "name": "http"
+      }
+    ],
+    "ingress": {
+      "enabled": true,
+      "host": "notification-api.cdx.com",
+      "tls": {
+        "enabled": true,
+        "certificate": "cdx-wildcard-cert"
+      },
+      "annotations": {
+        "nginx.ingress.kubernetes.io/rate-limit": "1000",
+        "nginx.ingress.kubernetes.io/rate-limit-window": "1m",
+        "nginx.ingress.kubernetes.io/proxy-body-size": "10m",
+        "nginx.ingress.kubernetes.io/proxy-read-timeout": "300",
+        "nginx.ingress.kubernetes.io/proxy-send-timeout": "300"
+      }
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "metrics": {
+      "enabled": true,
+      "path": "/metrics",
+      "port": 3000
+    },
+    "logging": {
+      "enabled": true,
+      "level": "info",
+      "format": "json"
+    },
+    "tracing": {
+      "enabled": true,
+      "jaeger": {
+        "endpoint": "${JAEGER_ENDPOINT}"
+      }
+    }
+  },
+  "scaling": {
+    "enabled": true,
+    "minReplicas": 2,
+    "maxReplicas": 10,
+    "targetCPUUtilizationPercentage": 70,
+    "targetMemoryUtilizationPercentage": 80
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "retention": "30d"
+  },
+  "security": {
+    "runAsNonRoot": true,
+    "runAsUser": 1001,
+    "runAsGroup": 1001,
+    "fsGroup": 1001,
+    "securityContext": {
+      "allowPrivilegeEscalation": false,
+      "readOnlyRootFilesystem": true,
+      "capabilities": {
+        "drop": ["ALL"]
+      }
+    }
+  },
+  "volumes": [
+    {
+      "name": "logs",
+      "mountPath": "/app/logs",
+      "type": "emptyDir"
+    }
+  ],
+  "initContainers": [
+    {
+      "name": "wait-for-dependencies",
+      "image": "busybox:1.35",
+      "command": [
+        "sh",
+        "-c",
+        "until nc -z ${DATABASE_HOST} ${DATABASE_PORT}; do echo 'Waiting for database...'; sleep 2; done; until nc -z ${REDIS_HOST} ${REDIS_PORT}; do echo 'Waiting for Redis...'; sleep 2; done; until nc -z ${RABBITMQ_HOST} ${RABBITMQ_PORT}; do echo 'Waiting for RabbitMQ...'; sleep 2; done;"
+      ]
+    }
+  ],
+  "postDeploy": {
+    "hooks": [
+      {
+        "name": "health-check",
+        "command": "curl -f http://localhost:3000/health",
+        "timeout": 30
+      },
+      {
+        "name": "warmup",
+        "command": "curl -f http://localhost:3000/api/v1/notifications?limit=1",
+        "timeout": 10
+      }
+    ]
+  },
+  "rollback": {
+    "enabled": true,
+    "strategy": "immediate",
+    "retention": 5
+  }
+}

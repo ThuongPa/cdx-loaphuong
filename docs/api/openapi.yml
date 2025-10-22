@@ -1,0 +1,1323 @@
+openapi: 3.0.3
+info:
+  title: CDX Loap Huong Notification Service API
+  description: |
+    Comprehensive notification service API for CDX Loap Huong platform.
+
+    ## Features
+    - Device token management for push notifications
+    - Notification history and management
+    - User notification preferences
+    - Admin broadcast capabilities
+    - Retry mechanism for failed notifications
+    - Real-time delivery tracking
+
+    ## Authentication
+    All endpoints require JWT authentication via Bearer token in the Authorization header.
+
+    ## Rate Limiting
+    - User endpoints: 1000 requests per minute
+    - Admin endpoints: 100 requests per minute
+
+    ## Error Handling
+    All errors follow a consistent format with appropriate HTTP status codes.
+  version: 1.0.0
+  contact:
+    name: CDX Development Team
+    email: dev@cdx.com
+  license:
+    name: Proprietary
+    url: https://cdx.com/license
+
+servers:
+  - url: https://api.cdx.com/v1
+    description: Production server
+  - url: https://staging-api.cdx.com/v1
+    description: Staging server
+  - url: http://localhost:3000/api/v1
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Health Check
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the health status of the service and its dependencies
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  # Device Token Management
+  /device-tokens:
+    get:
+      tags:
+        - Device Tokens
+      summary: Get user device tokens
+      description: Retrieve all device tokens for the authenticated user
+      responses:
+        '200':
+          description: Device tokens retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTokenListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Device Tokens
+      summary: Register device token
+      description: Register a new device token for push notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceTokenRequest'
+            examples:
+              ios_device:
+                summary: iOS Device Token
+                value:
+                  token: 'ios_device_token_123456789'
+                  platform: 'ios'
+                  deviceName: 'iPhone 15 Pro'
+                  osVersion: '17.0'
+                  appVersion: '1.0.0'
+              android_device:
+                summary: Android Device Token
+                value:
+                  token: 'android_device_token_987654321'
+                  platform: 'android'
+                  deviceName: 'Samsung Galaxy S24'
+                  osVersion: '14.0'
+                  appVersion: '1.0.0'
+      responses:
+        '201':
+          description: Device token registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          description: Device token already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /device-tokens/{token}:
+    put:
+      tags:
+        - Device Tokens
+      summary: Update device token
+      description: Update an existing device token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Device token to update
+          schema:
+            type: string
+            example: 'ios_device_token_123456789'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeviceTokenRequest'
+      responses:
+        '200':
+          description: Device token updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags:
+        - Device Tokens
+      summary: Delete device token
+      description: Remove a device token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Device token to delete
+          schema:
+            type: string
+            example: 'ios_device_token_123456789'
+      responses:
+        '200':
+          description: Device token deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # Notification Management
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification history
+      description: Retrieve notification history with pagination and filtering
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: type
+          in: query
+          description: Filter by notification type
+          schema:
+            $ref: '#/components/schemas/NotificationType'
+        - name: channel
+          in: query
+          description: Filter by notification channel
+          schema:
+            $ref: '#/components/schemas/NotificationChannel'
+        - name: status
+          in: query
+          description: Filter by notification status
+          schema:
+            $ref: '#/components/schemas/NotificationStatus'
+        - name: startDate
+          in: query
+          description: Filter notifications from this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: Filter notifications until this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [createdAt, sentAt, readAt]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Notification history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationHistoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /notifications/{id}:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification detail
+      description: Retrieve detailed information about a specific notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Notification ID
+          schema:
+            type: string
+            example: 'notif_123456789'
+      responses:
+        '200':
+          description: Notification detail retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDetailResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags:
+        - Notifications
+      summary: Mark notification as read
+      description: Mark a specific notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Notification ID
+          schema:
+            type: string
+            example: 'notif_123456789'
+      responses:
+        '200':
+          description: Notification marked as read successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkAsReadResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /notifications/read-all:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all notifications as read
+      description: Mark all unread notifications for the user as read
+      responses:
+        '200':
+          description: All notifications marked as read successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkAllAsReadResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: Get unread count
+      description: Get the count of unread notifications for the user
+      responses:
+        '200':
+          description: Unread count retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCountResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # User Preferences
+  /preferences:
+    get:
+      tags:
+        - Preferences
+      summary: Get user notification preferences
+      description: Retrieve notification preferences for the authenticated user
+      responses:
+        '200':
+          description: Preferences retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    put:
+      tags:
+        - Preferences
+      summary: Update user notification preferences
+      description: Update notification preferences for the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePreferencesRequest'
+            examples:
+              full_preferences:
+                summary: Complete Preferences
+                value:
+                  push:
+                    enabled: true
+                    types: ['payment', 'booking', 'announcement']
+                    quietHours:
+                      enabled: true
+                      start: '22:00'
+                      end: '08:00'
+                      timezone: 'Asia/Ho_Chi_Minh'
+                  email:
+                    enabled: true
+                    types: ['announcement', 'system']
+                    frequency: 'daily'
+                  sms:
+                    enabled: false
+                    types: []
+              minimal_preferences:
+                summary: Minimal Preferences
+                value:
+                  push:
+                    enabled: true
+                    types: ['payment']
+      responses:
+        '200':
+          description: Preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # Admin Endpoints
+  /admin/statistics:
+    get:
+      tags:
+        - Admin
+      summary: Get notification statistics
+      description: Retrieve comprehensive notification statistics (Admin only)
+      parameters:
+        - name: period
+          in: query
+          description: Time period for statistics
+          schema:
+            type: string
+            enum: [today, week, month, quarter, year, custom]
+            default: week
+        - name: startDate
+          in: query
+          description: Start date for custom period (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: End date for custom period (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatisticsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/broadcast:
+    post:
+      tags:
+        - Admin
+      summary: Create broadcast notification
+      description: Create a broadcast notification to multiple users (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BroadcastRequest'
+            examples:
+              immediate_broadcast:
+                summary: Immediate Broadcast
+                value:
+                  title: 'System Maintenance'
+                  body: 'Scheduled maintenance will occur tonight from 2-4 AM'
+                  type: 'announcement'
+                  priority: 'normal'
+                  targetUsers: ['all']
+                  channels: ['push', 'email']
+              scheduled_broadcast:
+                summary: Scheduled Broadcast
+                value:
+                  title: 'New Feature Release'
+                  body: 'Check out our new features in the latest update'
+                  type: 'announcement'
+                  priority: 'normal'
+                  targetUsers: ['all']
+                  channels: ['push']
+                  scheduledAt: '2024-01-15T10:00:00Z'
+      responses:
+        '201':
+          description: Broadcast notification created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BroadcastResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/failed-notifications:
+    get:
+      tags:
+        - Admin
+      summary: Get failed notifications
+      description: Retrieve failed notifications with pagination (Admin only)
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: errorCode
+          in: query
+          description: Filter by error code
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          description: Filter from date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: Filter until date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Failed notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailedNotificationsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/retry/{notificationId}:
+    post:
+      tags:
+        - Admin
+      summary: Retry failed notification
+      description: Manually retry a failed notification (Admin only)
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          description: Notification ID to retry
+          schema:
+            type: string
+            example: 'notif_123456789'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetryRequest'
+            examples:
+              with_reason:
+                summary: Retry with Reason
+                value:
+                  reason: 'Manual retry after service recovery'
+              without_reason:
+                summary: Retry without Reason
+                value: {}
+      responses:
+        '200':
+          description: Notification retry initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication service
+
+  schemas:
+    # Common Schemas
+    ApiResponse:
+      type: object
+      required:
+        - success
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          description: Indicates if the request was successful
+        message:
+          type: string
+          description: Human-readable message
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          required:
+            - error
+          properties:
+            error:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Error code
+                details:
+                  type: string
+                  description: Detailed error message
+                field:
+                  type: string
+                  description: Field that caused the error (for validation errors)
+
+    SuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Response data
+
+    # Health Schemas
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        info:
+          type: object
+          description: Health information for each service
+        error:
+          type: object
+          description: Error information for unhealthy services
+        details:
+          type: object
+          description: Detailed health information
+
+    # Device Token Schemas
+    DeviceToken:
+      type: object
+      required:
+        - id
+        - token
+        - platform
+        - userId
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique device token ID
+        token:
+          type: string
+          description: Device token value
+        platform:
+          $ref: '#/components/schemas/DevicePlatform'
+        deviceName:
+          type: string
+          description: Device name
+        osVersion:
+          type: string
+          description: Operating system version
+        appVersion:
+          type: string
+          description: Application version
+        userId:
+          type: string
+          description: User ID
+        isActive:
+          type: boolean
+          description: Whether the token is active
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RegisterDeviceTokenRequest:
+      type: object
+      required:
+        - token
+        - platform
+      properties:
+        token:
+          type: string
+          description: Device token value
+          example: 'ios_device_token_123456789'
+        platform:
+          $ref: '#/components/schemas/DevicePlatform'
+        deviceName:
+          type: string
+          description: Device name
+          example: 'iPhone 15 Pro'
+        osVersion:
+          type: string
+          description: Operating system version
+          example: '17.0'
+        appVersion:
+          type: string
+          description: Application version
+          example: '1.0.0'
+
+    UpdateDeviceTokenRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: New device token value
+        deviceName:
+          type: string
+          description: Device name
+        osVersion:
+          type: string
+          description: Operating system version
+        appVersion:
+          type: string
+          description: Application version
+
+    DeviceTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceToken'
+
+    DeviceTokenListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/DeviceToken'
+
+    # Notification Schemas
+    Notification:
+      type: object
+      required:
+        - id
+        - userId
+        - title
+        - body
+        - type
+        - channel
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique notification ID
+        userId:
+          type: string
+          description: User ID
+        notificationId:
+          type: string
+          description: Original notification ID
+        title:
+          type: string
+          description: Notification title
+        body:
+          type: string
+          description: Notification body
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        priority:
+          $ref: '#/components/schemas/NotificationPriority'
+        status:
+          $ref: '#/components/schemas/NotificationStatus'
+        data:
+          type: object
+          description: Additional notification data
+        sentAt:
+          type: string
+          format: date-time
+          description: When the notification was sent
+        deliveredAt:
+          type: string
+          format: date-time
+          description: When the notification was delivered
+        readAt:
+          type: string
+          format: date-time
+          description: When the notification was read
+        errorMessage:
+          type: string
+          description: Error message if notification failed
+        errorCode:
+          type: string
+          description: Error code if notification failed
+        retryCount:
+          type: integer
+          description: Number of retry attempts
+        deliveryId:
+          type: string
+          description: External delivery service ID
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    NotificationHistoryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - notifications
+                - pagination
+              properties:
+                notifications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Notification'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+
+    NotificationDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Notification'
+
+    MarkAsReadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - success
+                - notificationId
+                - readAt
+              properties:
+                success:
+                  type: boolean
+                notificationId:
+                  type: string
+                readAt:
+                  type: string
+                  format: date-time
+
+    MarkAllAsReadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - success
+                - updatedCount
+                - readAt
+              properties:
+                success:
+                  type: boolean
+                updatedCount:
+                  type: integer
+                readAt:
+                  type: string
+                  format: date-time
+
+    UnreadCountResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - count
+                - lastUpdated
+              properties:
+                count:
+                  type: integer
+                  description: Number of unread notifications
+                lastUpdated:
+                  type: string
+                  format: date-time
+                  description: When the count was last updated
+
+    # Preferences Schemas
+    NotificationPreferences:
+      type: object
+      properties:
+        push:
+          $ref: '#/components/schemas/ChannelPreferences'
+        email:
+          $ref: '#/components/schemas/ChannelPreferences'
+        sms:
+          $ref: '#/components/schemas/ChannelPreferences'
+
+    ChannelPreferences:
+      type: object
+      required:
+        - enabled
+        - types
+      properties:
+        enabled:
+          type: boolean
+          description: Whether this channel is enabled
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationType'
+          description: Allowed notification types for this channel
+        quietHours:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            start:
+              type: string
+              pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+              example: '22:00'
+            end:
+              type: string
+              pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+              example: '08:00'
+            timezone:
+              type: string
+              example: 'Asia/Ho_Chi_Minh'
+        frequency:
+          type: string
+          enum: [immediate, hourly, daily, weekly]
+          description: Email frequency preference
+
+    UpdatePreferencesRequest:
+      type: object
+      properties:
+        push:
+          $ref: '#/components/schemas/ChannelPreferences'
+        email:
+          $ref: '#/components/schemas/ChannelPreferences'
+        sms:
+          $ref: '#/components/schemas/ChannelPreferences'
+
+    PreferencesResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - userId
+                - preferences
+                - createdAt
+                - updatedAt
+              properties:
+                userId:
+                  type: string
+                preferences:
+                  $ref: '#/components/schemas/NotificationPreferences'
+                createdAt:
+                  type: string
+                  format: date-time
+                updatedAt:
+                  type: string
+                  format: date-time
+
+    # Admin Schemas
+    Statistics:
+      type: object
+      properties:
+        totalNotifications:
+          type: integer
+          description: Total number of notifications
+        deliveredCount:
+          type: integer
+          description: Number of delivered notifications
+        failedCount:
+          type: integer
+          description: Number of failed notifications
+        pendingCount:
+          type: integer
+          description: Number of pending notifications
+        successRate:
+          type: number
+          format: float
+          description: Success rate (0-1)
+        averageDeliveryTime:
+          type: number
+          format: float
+          description: Average delivery time in milliseconds
+        topNotificationTypes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                $ref: '#/components/schemas/NotificationType'
+              count:
+                type: integer
+        topChannels:
+          type: array
+          items:
+            type: object
+            properties:
+              channel:
+                $ref: '#/components/schemas/NotificationChannel'
+              count:
+                type: integer
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+
+    StatisticsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Statistics'
+
+    BroadcastRequest:
+      type: object
+      required:
+        - title
+        - body
+        - type
+        - targetUsers
+      properties:
+        title:
+          type: string
+          description: Notification title
+          example: 'System Maintenance'
+        body:
+          type: string
+          description: Notification body
+          example: 'Scheduled maintenance will occur tonight from 2-4 AM'
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        priority:
+          $ref: '#/components/schemas/NotificationPriority'
+          default: normal
+        targetUsers:
+          type: array
+          items:
+            type: string
+          description: Target user IDs or 'all' for broadcast
+          example: ['all']
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationChannel'
+          description: Notification channels to use
+          example: ['push', 'email']
+        data:
+          type: object
+          description: Additional notification data
+        scheduledAt:
+          type: string
+          format: date-time
+          description: When to send the notification (optional)
+
+    BroadcastResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - id
+                - title
+                - type
+                - status
+                - targetCount
+              properties:
+                id:
+                  type: string
+                  description: Broadcast notification ID
+                title:
+                  type: string
+                type:
+                  $ref: '#/components/schemas/NotificationType'
+                status:
+                  $ref: '#/components/schemas/NotificationStatus'
+                targetCount:
+                  type: integer
+                  description: Number of target users
+                scheduledAt:
+                  type: string
+                  format: date-time
+                createdAt:
+                  type: string
+                  format: date-time
+
+    FailedNotificationsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - notifications
+                - pagination
+              properties:
+                notifications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Notification'
+                pagination:
+                  $ref: '#/components/schemas/Pagination'
+
+    RetryRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Reason for manual retry
+          example: 'Manual retry after service recovery'
+
+    RetryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - notificationId
+                - status
+                - retryCount
+              properties:
+                notificationId:
+                  type: string
+                status:
+                  $ref: '#/components/schemas/NotificationStatus'
+                retryCount:
+                  type: integer
+                retryReason:
+                  type: string
+                retryAt:
+                  type: string
+                  format: date-time
+
+    # Common Utility Schemas
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+        - hasNext
+        - hasPrev
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-based)
+        limit:
+          type: integer
+          description: Number of items per page
+        total:
+          type: integer
+          description: Total number of items
+        totalPages:
+          type: integer
+          description: Total number of pages
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+
+    # Enum Schemas
+    DevicePlatform:
+      type: string
+      enum: [ios, android, web]
+      description: Device platform
+
+    NotificationType:
+      type: string
+      enum: [payment, booking, announcement, system, marketing, security]
+      description: Type of notification
+
+    NotificationChannel:
+      type: string
+      enum: [push, email, sms, inApp]
+      description: Notification delivery channel
+
+    NotificationPriority:
+      type: string
+      enum: [low, normal, high, urgent]
+      description: Notification priority level
+
+    NotificationStatus:
+      type: string
+      enum: [pending, sent, delivered, read, failed, cancelled]
+      description: Notification status
+
+  responses:
+    BadRequestError:
+      description: Bad request - Invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: 'Validation failed'
+            error:
+              code: 'VALIDATION_ERROR'
+              details: 'token is required'
+              field: 'token'
+            timestamp: '2024-01-15T10:30:00Z'
+
+    UnauthorizedError:
+      description: Unauthorized - Invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: 'Unauthorized'
+            error:
+              code: 'UNAUTHORIZED'
+              details: 'Invalid or missing JWT token'
+            timestamp: '2024-01-15T10:30:00Z'
+
+    ForbiddenError:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: 'Forbidden'
+            error:
+              code: 'FORBIDDEN'
+              details: 'Admin access required'
+            timestamp: '2024-01-15T10:30:00Z'
+
+    NotFoundError:
+      description: Not found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: 'Not found'
+            error:
+              code: 'NOT_FOUND'
+              details: 'Notification not found'
+            timestamp: '2024-01-15T10:30:00Z'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: 'Internal server error'
+            error:
+              code: 'INTERNAL_ERROR'
+              details: 'An unexpected error occurred'
+            timestamp: '2024-01-15T10:30:00Z'
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Device Tokens
+    description: Device token management for push notifications
+  - name: Notifications
+    description: Notification history and management
+  - name: Preferences
+    description: User notification preferences
+  - name: Admin
+    description: Administrative functions (Admin access required)
