@@ -16,6 +16,8 @@ import { NotificationRepository } from '../../domain/notification.repository';
 import { UserPreferencesRepository } from '../../../preferences/domain/user-preferences.repository';
 import { UserPreferences } from '../../../preferences/domain/user-preferences.entity';
 import { NotificationChannelVO } from '../../domain/value-objects/notification-channel.vo';
+import { ConfigService } from '@nestjs/config';
+import { PriorityQueueService } from '../../../priority-queue/priority-queue.service';
 
 export interface ProcessNotificationEventParams {
   title: string;
@@ -49,6 +51,8 @@ export class NotificationProcessingService {
     private readonly circuitBreakerService: CircuitBreakerService,
     @Inject('TemplateSelectionService')
     private readonly templateSelectionService: TemplateSelectionService,
+    private readonly configService: ConfigService,
+    private readonly priorityQueueService: PriorityQueueService,
   ) {}
 
   /**
@@ -86,8 +90,8 @@ export class NotificationProcessingService {
       // 4. Save notification to database
       await this.notificationRepository.save(notification);
 
-      // 5. Send notifications via Novu
-      await this.sendNotifications(notification, filteredUsers, targetingResult.userPreferences);
+      // 5. Queue notifications for priority processing
+      await this.queueNotificationsForProcessing(notification, filteredUsers);
 
       this.logger.log(`Successfully processed notification: ${notification.id}`);
     } catch (error) {
@@ -200,7 +204,55 @@ export class NotificationProcessingService {
   }
 
   /**
-   * Send notifications via Novu for each channel
+   * Queue notifications for priority processing
+   */
+  private async queueNotificationsForProcessing(
+    notification: NotificationAggregate,
+    userIds: string[],
+  ): Promise<void> {
+    try {
+      this.logger.log(`Queueing ${userIds.length} notifications for priority processing`);
+
+      for (const userId of userIds) {
+        try {
+          // Create notification message for priority queue
+          const notificationMessage = {
+            id: notification.id,
+            userId: userId,
+            type: notification.type.getValue(),
+            title: notification.title,
+            body: notification.body,
+            data: {
+              channels: notification.channels.map((ch) => ch.getValue()),
+              data: notification.data,
+              notificationId: notification.id,
+            },
+            priority: notification.priority.getValue(),
+            scheduledAt: undefined,
+            retryCount: 0,
+            maxRetries: 3,
+          };
+
+          // Enqueue notification using PriorityQueueService
+          await this.priorityQueueService.enqueueNotification(notificationMessage);
+
+          this.logger.log(
+            `Notification queued for user: ${userId} (priority: ${notification.priority.getValue()})`,
+          );
+        } catch (error) {
+          this.logger.error(`Failed to queue notification for user ${userId}:`, error);
+        }
+      }
+
+      this.logger.log(`Notifications queued for ${userIds.length} users`);
+    } catch (error) {
+      this.logger.error('Error queueing notifications', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send notifications via Novu for each channel (DEPRECATED - use priority queue instead)
    */
   private async sendNotifications(
     notification: NotificationAggregate,
@@ -355,10 +407,23 @@ export class NotificationProcessingService {
   }
 
   /**
-   * Get workflow ID based on notification type and channel
+   * Get workflow ID based on notification type and channel from .env config
    */
   private getWorkflowId(type: string, channel: string): string {
-    return `${type}-${channel}`;
+    // Use dynamic workflow selection based on channel
+    switch (channel.toLowerCase()) {
+      case 'push':
+        return this.configService.get('NOVU_WORKFLOW_PUSH') || 'test-push';
+      case 'email':
+        return this.configService.get('NOVU_WORKFLOW_EMAIL') || 'test-email';
+      case 'sms':
+        return this.configService.get('NOVU_WORKFLOW_SMS') || 'test-sms';
+      case 'in-app':
+      case 'inapp':
+        return this.configService.get('NOVU_WORKFLOW_IN_APP') || 'test-in-app';
+      default:
+        return this.configService.get('NOVU_WORKFLOW_PUSH') || 'test-push';
+    }
   }
 
   /**

@@ -30,12 +30,12 @@ info:
     url: https://cdx.com/license
 
 servers:
-  - url: https://api.cdx.com/v1
-    description: Production server
-  - url: https://staging-api.cdx.com/v1
-    description: Staging server
-  - url: http://localhost:3000/api/v1
+  - url: http://localhost:3000
     description: Development server
+  - url: https://api.cdx.com
+    description: Production server
+  - url: https://staging-api.cdx.com
+    description: Staging server
 
 security:
   - bearerAuth: []

@@ -11,7 +11,7 @@ import { RedisService } from '../../infrastructure/cache/redis.service';
 
 export interface RateLimitOptions {
   windowMs: number; // Time window in milliseconds
-  max: number; // Maximum number of requests per window
+  limit: number; // Maximum number of requests per window
   message?: string; // Custom error message
   skipSuccessfulRequests?: boolean; // Skip counting successful requests
   skipFailedRequests?: boolean; // Skip counting failed requests
@@ -45,9 +45,9 @@ export class RateLimitGuard implements CanActivate {
       const current = await this.redisService.get(key);
       const count = current ? parseInt(current, 10) : 0;
 
-      if (count >= rateLimitOptions.max) {
+      if (count >= rateLimitOptions.limit) {
         // Set rate limit headers
-        response.setHeader('X-RateLimit-Limit', rateLimitOptions.max);
+        response.setHeader('X-RateLimit-Limit', rateLimitOptions.limit);
         response.setHeader('X-RateLimit-Remaining', 0);
         response.setHeader(
           'X-RateLimit-Reset',
@@ -72,8 +72,8 @@ export class RateLimitGuard implements CanActivate {
       }
 
       // Set rate limit headers
-      response.setHeader('X-RateLimit-Limit', rateLimitOptions.max);
-      response.setHeader('X-RateLimit-Remaining', Math.max(0, rateLimitOptions.max - count - 1));
+      response.setHeader('X-RateLimit-Limit', rateLimitOptions.limit);
+      response.setHeader('X-RateLimit-Remaining', Math.max(0, rateLimitOptions.limit - count - 1));
       response.setHeader(
         'X-RateLimit-Reset',
         new Date(Date.now() + rateLimitOptions.windowMs).toISOString(),

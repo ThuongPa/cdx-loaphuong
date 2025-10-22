@@ -39,9 +39,9 @@ import {
 } from './dto/mark-as-read.dto';
 
 @ApiTags('Notifications')
-@Controller('api/v1/notifications')
+@Controller('notifications')
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('bearerAuth')
 export class NotificationController {
   private readonly logger = new Logger(NotificationController.name);
 

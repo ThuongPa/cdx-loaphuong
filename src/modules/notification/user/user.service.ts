@@ -192,6 +192,7 @@ export class UserService {
       ROLE_ADMIN: UserRole.ADMIN,
       ROLE_MANAGER: UserRole.MANAGER,
       ROLE_STAFF: UserRole.MANAGER, // Map STAFF to MANAGER
+      ADMIN_XA: UserRole.ADMIN, // Map ADMIN_XA to ADMIN
       resident: UserRole.RESIDENT,
       admin: UserRole.ADMIN,
       manager: UserRole.MANAGER,

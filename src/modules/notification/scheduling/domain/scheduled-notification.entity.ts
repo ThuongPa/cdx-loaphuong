@@ -1,3 +1,5 @@
+import { CuidUtil } from '../../../../common/utils/cuid.util';
+
 export interface SchedulePattern {
   type: 'once' | 'recurring' | 'cron';
   cronExpression?: string;
@@ -56,7 +58,7 @@ export class ScheduledNotification {
     const now = new Date();
     return new ScheduledNotification({
       ...props,
-      id: undefined,
+      id: CuidUtil.generate(),
       createdAt: now,
       updatedAt: now,
     });

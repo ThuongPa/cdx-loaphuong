@@ -9,7 +9,6 @@ import { MonitoringModule } from '../monitoring/monitoring.module';
 import { RedisModule } from '../cache/redis.module';
 import { LoggingModule } from '../logging/logging.module';
 
-
 @Module({
   imports: [
     MongooseModule.forFeature([]), // Add any required schemas here

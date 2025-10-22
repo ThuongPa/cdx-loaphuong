@@ -10,7 +10,7 @@ import { ApiResponseDto } from '../../../../common/dto/api-response.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 
 @ApiTags('Preferences')
-@Controller('api/v1/preferences')
+@Controller('preferences')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class PreferencesController {

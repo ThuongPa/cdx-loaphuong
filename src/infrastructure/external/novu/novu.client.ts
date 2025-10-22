@@ -13,6 +13,24 @@ export class NovuClient {
     private readonly configService: ConfigService,
   ) {}
 
+  getWorkflowId(channels: string[]): string {
+    // Get the first channel to determine workflow
+    const primaryChannel = channels[0] || 'push';
+
+    switch (primaryChannel) {
+      case 'push':
+        return this.configService.get('NOVU_WORKFLOW_PUSH') || 'test-push';
+      case 'email':
+        return this.configService.get('NOVU_WORKFLOW_EMAIL') || 'test-email';
+      case 'sms':
+        return this.configService.get('NOVU_WORKFLOW_SMS') || 'test-sms';
+      case 'in-app':
+        return this.configService.get('NOVU_WORKFLOW_IN_APP') || 'test-in-app';
+      default:
+        return this.configService.get('NOVU_WORKFLOW_PUSH') || 'test-push';
+    }
+  }
+
   async createSubscriber(data: any): Promise<void> {
     this.logger.log(`Creating subscriber: ${data.subscriberId}`);
 
@@ -263,8 +281,53 @@ export class NovuClient {
       'novu',
       async () => {
         return this.retryService.executeWithRetry(async () => {
-          // Mock implementation - in real app, this would call Novu API
-          return Promise.resolve();
+          // Check if NOVU_API_KEY is configured
+          const novuConfig = this.configService.get('novu');
+          const apiKey = novuConfig?.apiKey;
+          const apiUrl = novuConfig?.apiUrl;
+
+          if (!apiKey) {
+            this.logger.warn('NOVU_API_KEY not configured, using mock implementation');
+            this.logger.log('Mock notification sent:', {
+              to: data.to,
+              title: data.title,
+              body: data.body,
+            });
+            return Promise.resolve();
+          }
+
+          // Real Novu API implementation
+          try {
+            const response = await fetch(`${apiUrl}/v1/notifications`, {
+              method: 'POST',
+              headers: {
+                Authorization: `ApiKey ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: data.to,
+                title: data.title,
+                body: data.body,
+                channels: data.channels || ['push'],
+                data: data.data || {},
+              }),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Novu API error: ${response.status} - ${errorText}`);
+            }
+
+            const result = await response.json();
+            this.logger.log(`Notification sent successfully in Novu: ${data.to}`, {
+              notificationId: result.data?.id || result.id,
+            });
+
+            return Promise.resolve();
+          } catch (error) {
+            this.logger.error(`Failed to send notification in Novu: ${error.message}`);
+            throw error;
+          }
         });
       },
       {
@@ -283,13 +346,63 @@ export class NovuClient {
     this.logger.log(
       `Triggering workflow: ${data.workflowId} for ${data.recipients.length} recipients`,
     );
+    this.logger.log('Workflow payload:', JSON.stringify(data.payload, null, 2));
 
     return this.circuitBreakerService.execute(
       'novu',
       async () => {
         return this.retryService.executeWithRetry(async () => {
-          // Mock implementation - in real app, this would call Novu API
-          return Promise.resolve({ deliveryId: `delivery_${Date.now()}` });
+          // Check if NOVU_API_KEY is configured
+          const novuConfig = this.configService.get('novu');
+          const apiKey = novuConfig?.apiKey;
+          const apiUrl = novuConfig?.apiUrl;
+
+          if (!apiKey) {
+            this.logger.warn('NOVU_API_KEY not configured, using mock implementation');
+            this.logger.log('Mock workflow trigger:', {
+              workflowId: data.workflowId,
+              recipients: data.recipients,
+              payload: data.payload,
+              deliveryId: `mock_delivery_${Date.now()}`,
+            });
+            return Promise.resolve({ deliveryId: `mock_delivery_${Date.now()}` });
+          }
+
+          // Real Novu API implementation
+
+          try {
+            const response = await fetch(`${apiUrl}/v1/events/trigger`, {
+              method: 'POST',
+              headers: {
+                Authorization: `ApiKey ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                name: data.workflowId,
+                to: data.recipients[0], // Novu expects single recipient
+                payload: data.payload,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Novu API error: ${response.status} - ${errorText}`);
+            }
+
+            const result = await response.json();
+            this.logger.log(`Workflow triggered successfully in Novu: ${data.workflowId}`, {
+              deliveryId: result.data?.transactionId || result.transactionId,
+              recipient: data.recipients[0],
+            });
+
+            return Promise.resolve({
+              deliveryId:
+                result.data?.transactionId || result.transactionId || `delivery_${Date.now()}`,
+            });
+          } catch (error) {
+            this.logger.error(`Failed to trigger workflow in Novu: ${error.message}`);
+            throw error;
+          }
         });
       },
       {

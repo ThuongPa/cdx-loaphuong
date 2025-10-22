@@ -52,10 +52,10 @@ interface AuthenticatedRequest extends Request {
 }
 
 @ApiTags('Admin')
-@ApiBearerAuth()
+@ApiBearerAuth('bearerAuth')
 @UseGuards(AdminGuard, RateLimitGuard)
 @AdminRateLimit()
-@Controller('api/v1/admin')
+@Controller('admin')
 export class AdminController {
   private readonly logger = new Logger(AdminController.name);
 

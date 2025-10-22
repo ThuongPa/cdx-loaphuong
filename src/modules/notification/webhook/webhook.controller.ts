@@ -32,7 +32,7 @@ import { UpdateWebhookDto } from './dto/update-webhook.dto';
 import { WebhookDeliveryDto } from './dto/webhook-delivery.dto';
 
 @ApiTags('Webhook Management')
-@Controller('api/v1/webhooks')
+@Controller('webhooks')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class WebhookController {

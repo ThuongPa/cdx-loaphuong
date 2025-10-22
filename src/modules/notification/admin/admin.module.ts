@@ -11,6 +11,8 @@ import { User, UserSchema } from '../../../infrastructure/database/schemas/user.
 import { RedisModule } from '../../../infrastructure/cache/redis.module';
 import { AuthServiceModule } from '../../../infrastructure/external/auth-service/auth-service.module';
 import { CircuitBreakerModule } from '../../../infrastructure/external/circuit-breaker/circuit-breaker.module';
+import { NovuModule } from '../../../infrastructure/external/novu/novu.module';
+import { PriorityQueueModule } from '../priority-queue/priority-queue.module';
 import { AuditLogService } from '../../../common/services/audit-log.service';
 import { RateLimitGuard } from '../../../common/guards/rate-limit.guard';
 import {
@@ -38,6 +40,8 @@ import {
     ScheduleModule,
     AuthServiceModule,
     CircuitBreakerModule,
+    NovuModule,
+    PriorityQueueModule,
   ],
   controllers: [AdminController],
   providers: [

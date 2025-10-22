@@ -3,6 +3,7 @@ import { CircuitBreakerService } from '../circuit-breaker/circuit-breaker.servic
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { UserRole } from '../../../common/enums/user-role.enum';
 
 export interface User {
   id: string;
@@ -57,12 +58,16 @@ export class AuthServiceClient {
             phone: userData.phoneNumber,
             firstName: userData.firstName || userData.fullName?.split(' ')[0],
             lastName: userData.lastName || userData.fullName?.split(' ').slice(1).join(' '),
-            roles: userData.role ? [userData.role] : [],
+            roles: userData.role ? [this.mapRoleToEnum(userData.role)] : [],
             isActive: true,
             lastSyncedAt: new Date(),
           };
 
-          this.logger.log('Token validated successfully');
+          this.logger.log('Token validated successfully', {
+            userId: user.id,
+            roles: user.roles,
+            mappedRole: this.mapRoleToEnum(userData.role),
+          });
           return user;
         } catch (error) {
           this.logger.error('Token validation failed', error);
@@ -245,5 +250,24 @@ export class AuthServiceClient {
         resetTimeout: 60000,
       },
     );
+  }
+
+  /**
+   * Map role string to UserRole enum
+   */
+  private mapRoleToEnum(role: string): UserRole {
+    const roleMap: Record<string, UserRole> = {
+      ROLE_RESIDENT: UserRole.RESIDENT,
+      ROLE_ADMIN: UserRole.ADMIN,
+      ROLE_MANAGER: UserRole.MANAGER,
+      ROLE_STAFF: UserRole.MANAGER, // Map STAFF to MANAGER
+      ADMIN_XA: UserRole.ADMIN, // Map ADMIN_XA to ADMIN
+      resident: UserRole.RESIDENT,
+      admin: UserRole.ADMIN,
+      manager: UserRole.MANAGER,
+      staff: UserRole.MANAGER, // Map staff to MANAGER
+    };
+
+    return roleMap[role] || UserRole.RESIDENT;
   }
 }

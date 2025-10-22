@@ -35,7 +35,7 @@ import {
 } from './application/services/category.service';
 
 @ApiTags('Category Management')
-@Controller('api/v1/categories')
+@Controller('categories')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class CategoryController {

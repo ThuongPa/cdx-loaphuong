@@ -30,7 +30,7 @@ import {
 } from './horizontal-scaling.service';
 
 @ApiTags('Performance Optimization')
-@Controller('api/v1/performance')
+@Controller('performance')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class PerformanceController {

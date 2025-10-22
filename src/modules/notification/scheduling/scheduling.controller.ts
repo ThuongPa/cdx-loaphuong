@@ -33,7 +33,7 @@ import {
 } from './scheduling.service';
 
 @ApiTags('Notification Scheduling')
-@Controller('api/v1/scheduled-notifications')
+@Controller('scheduled-notifications')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class SchedulingController {

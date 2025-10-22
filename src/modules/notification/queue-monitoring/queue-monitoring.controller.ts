@@ -6,7 +6,7 @@ import { AdminGuard } from '../../../common/guards/admin.guard';
 import { HttpStatus, Controller, Get, Post, Param, Res, UseGuards } from '@nestjs/common';
 
 @ApiTags('Queue Monitoring')
-@Controller('api/v1/queue-monitoring')
+@Controller('queue-monitoring')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class QueueMonitoringController {

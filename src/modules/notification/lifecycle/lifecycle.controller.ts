@@ -22,9 +22,9 @@ import { CreatePolicyDto } from './dto/create-policy.dto';
 import { CreateRetentionRuleDto } from './dto/create-retention-rule.dto';
 
 @ApiTags('Lifecycle Management')
-@Controller('api/v1/lifecycle')
+@Controller('lifecycle')
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('bearerAuth')
 export class LifecycleController {
   constructor(private readonly lifecycleService: LifecycleService) {}
 

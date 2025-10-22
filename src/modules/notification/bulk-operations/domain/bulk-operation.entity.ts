@@ -1,3 +1,5 @@
+import { CuidUtil } from '../../../../common/utils/cuid.util';
+
 export interface BulkOperationProps {
   id?: string;
   operationId: string;
@@ -53,7 +55,7 @@ export class BulkOperation {
     const now = new Date();
     return new BulkOperation({
       ...props,
-      id: undefined,
+      id: CuidUtil.generate(),
       createdAt: now,
       updatedAt: now,
     });

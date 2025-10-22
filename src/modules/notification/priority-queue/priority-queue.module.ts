@@ -5,9 +5,10 @@ import { RabbitMQModule } from '../../../infrastructure/messaging/rabbitmq.modul
 import { RedisModule } from '../../../infrastructure/cache/redis.module';
 import { MonitoringModule } from '../../../infrastructure/monitoring/monitoring.module';
 import { LoggingModule } from '../../../infrastructure/logging/logging.module';
+import { NovuModule } from '../../../infrastructure/external/novu/novu.module';
 
 @Module({
-  imports: [RabbitMQModule, RedisModule, MonitoringModule, LoggingModule],
+  imports: [RabbitMQModule, RedisModule, MonitoringModule, LoggingModule, NovuModule],
   controllers: [PriorityQueueController],
   providers: [PriorityQueueService],
   exports: [PriorityQueueService],

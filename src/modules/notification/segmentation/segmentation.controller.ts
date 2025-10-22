@@ -33,7 +33,7 @@ import {
 } from './segmentation.service';
 
 @ApiTags('Segmentation & Targeting')
-@Controller('api/v1/segmentation')
+@Controller('segmentation')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class SegmentationController {

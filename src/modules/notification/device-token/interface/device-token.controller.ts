@@ -29,8 +29,8 @@ import { DeviceTokenResponseDto } from './dto/device-token-response.dto';
 import { DeviceToken } from '../domain/device-token.entity';
 
 @ApiTags('Device Tokens')
-@ApiBearerAuth()
-@Controller('api/v1/device-tokens')
+@ApiBearerAuth('bearerAuth')
+@Controller('device-tokens')
 @UseGuards(JwtAuthGuard)
 export class DeviceTokenController {
   private readonly logger = new Logger(DeviceTokenController.name);

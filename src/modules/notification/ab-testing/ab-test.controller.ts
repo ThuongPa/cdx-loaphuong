@@ -145,7 +145,7 @@ class AbTestService {
 }
 
 @ApiTags('A/B Testing')
-@Controller('api/v1/ab-tests')
+@Controller('ab-tests')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class AbTestController {

@@ -6,7 +6,7 @@ import { AdminGuard } from '../../../common/guards/admin.guard';
 import { HttpStatus, Controller, Get, Post, Body, Res, UseGuards } from '@nestjs/common';
 
 @ApiTags('Batch Processing')
-@Controller('api/v1/batch-processing')
+@Controller('batch-processing')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class BatchProcessingController {

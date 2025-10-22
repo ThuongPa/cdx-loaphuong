@@ -9,13 +9,22 @@ import {
   UserNotification,
   UserNotificationDocument,
 } from '../../../../../infrastructure/database/schemas/user-notification.schema';
+import { User, UserDocument } from '../../../../../infrastructure/database/schemas/user.schema';
 import { AuthServiceClient } from '../../../../../infrastructure/external/auth-service/auth-service.client';
 import { CircuitBreakerService } from '../../../../../infrastructure/external/circuit-breaker/circuit-breaker.service';
+import { NovuClient } from '../../../../../infrastructure/external/novu/novu.client';
+import { PriorityQueueService } from '../../../priority-queue/priority-queue.service';
 import {
   BroadcastNotificationDto,
   BroadcastNotificationResponseDto,
 } from '../../interface/dto/broadcast-notification.dto';
-import { NotificationPriority } from '../../../../../common/types/notification.types';
+import {
+  NotificationPriority,
+  NotificationType,
+} from '../../../../../common/types/notification.types';
+import { NotificationStatus } from '../../../../../common/enums/notification-status.enum';
+import { UserRole } from '../../../../../common/enums/user-role.enum';
+import { CuidUtil } from '../../../../../common/utils/cuid.util';
 
 @Injectable()
 export class BroadcastNotificationService {
@@ -26,8 +35,12 @@ export class BroadcastNotificationService {
     private readonly announcementModel: Model<AnnouncementDocument>,
     @InjectModel(UserNotification.name)
     private readonly userNotificationModel: Model<UserNotificationDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     private readonly authServiceClient: AuthServiceClient,
     private readonly circuitBreakerService: CircuitBreakerService,
+    private readonly novuClient: NovuClient,
+    private readonly priorityQueueService: PriorityQueueService,
   ) {}
 
   async createBroadcast(
@@ -41,14 +54,18 @@ export class BroadcastNotificationService {
 
       // Create announcement record
       const announcement = new this.announcementModel({
+        _id: CuidUtil.generate(), // Generate CUID for _id
         title: broadcastDto.title,
         body: broadcastDto.body,
+        type: NotificationType.ANNOUNCEMENT, // Set type as ANNOUNCEMENT
         targetRoles: broadcastDto.targetRoles,
         targetUsers: broadcastDto.targetUsers || [],
         channels: broadcastDto.channels,
         priority: broadcastDto.priority,
         scheduledAt: broadcastDto.scheduledAt ? new Date(broadcastDto.scheduledAt) : null,
-        status: broadcastDto.scheduledAt ? 'scheduled' : 'active',
+        status: broadcastDto.scheduledAt
+          ? NotificationStatus.SCHEDULED
+          : NotificationStatus.PENDING,
         data: broadcastDto.data || {},
         createdBy: 'admin', // This should come from the authenticated user
         createdAt: new Date(),
@@ -60,6 +77,9 @@ export class BroadcastNotificationService {
       // Create user notifications if not scheduled
       if (!broadcastDto.scheduledAt) {
         await this.createUserNotifications(savedAnnouncement, targetUsers);
+
+        // Queue notifications for processing
+        await this.queueNotificationsForSending(savedAnnouncement, targetUsers);
       }
 
       this.logger.log('Broadcast notification created successfully', {
@@ -80,35 +100,32 @@ export class BroadcastNotificationService {
   }
 
   private async getTargetUsers(broadcastDto: BroadcastNotificationDto): Promise<any[]> {
-    const targetUsers: any[] = [];
-
     try {
+      let query: any = { isActive: true };
+
       // Get users by roles
       if (broadcastDto.targetRoles.length > 0) {
-        const usersByRoles = await this.circuitBreakerService.execute('auth-service', () =>
-          this.authServiceClient.getUsersByRoles(broadcastDto.targetRoles),
-        );
-        targetUsers.push(...(usersByRoles as any[]));
+        query.roles = { $in: broadcastDto.targetRoles };
       }
 
       // Get specific users
       if (broadcastDto.targetUsers && broadcastDto.targetUsers.length > 0) {
-        const specificUsers = await Promise.all(
-          broadcastDto.targetUsers.map((userId) =>
-            this.circuitBreakerService.execute('auth-service', () =>
-              this.authServiceClient.getUserById(userId),
-            ),
-          ),
-        );
-        targetUsers.push(...(specificUsers as any[]));
+        query._id = { $in: broadcastDto.targetUsers };
       }
 
-      // Remove duplicates
-      const uniqueUsers = targetUsers.filter(
-        (user, index, self) => index === self.findIndex((u) => u.id === user.id),
-      );
+      // If no specific targeting, get all active users
+      if (
+        broadcastDto.targetRoles.length === 0 &&
+        (!broadcastDto.targetUsers || broadcastDto.targetUsers.length === 0)
+      ) {
+        this.logger.log('No specific targeting, getting all active users');
+        query = { isActive: true };
+      }
 
-      return uniqueUsers;
+      const users = await this.userModel.find(query).exec();
+      this.logger.log(`Found ${users.length} target users from local database`);
+
+      return users;
     } catch (error) {
       this.logger.error('Error getting target users', error);
       throw error;
@@ -119,19 +136,24 @@ export class BroadcastNotificationService {
     announcement: AnnouncementDocument,
     targetUsers: any[],
   ): Promise<void> {
-    const userNotifications = targetUsers.map((user) => ({
-      userId: user.id,
-      announcementId: announcement._id,
-      title: announcement.title,
-      body: announcement.body,
-      type: 'announcement',
-      channel: announcement.channels[0], // Use first channel for now
-      priority: announcement.priority,
-      status: 'pending',
-      data: announcement.data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
+    const userNotifications = targetUsers.map((user) => {
+      const notificationId = CuidUtil.generate();
+      return {
+        id: notificationId,
+        _id: notificationId,
+        userId: user._id,
+        notificationId: announcement._id,
+        title: announcement.title,
+        body: announcement.body,
+        type: 'announcement',
+        channel: announcement.channels[0], // Use first channel for now
+        priority: announcement.priority,
+        status: 'pending',
+        data: announcement.data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    });
 
     await this.userNotificationModel.insertMany(userNotifications);
 
@@ -139,5 +161,50 @@ export class BroadcastNotificationService {
       count: userNotifications.length,
       announcementId: announcement._id,
     });
+  }
+
+  private async queueNotificationsForSending(
+    announcement: AnnouncementDocument,
+    targetUsers: any[],
+  ): Promise<void> {
+    try {
+      this.logger.log(`Queueing ${targetUsers.length} notifications for processing`);
+
+      for (const user of targetUsers) {
+        try {
+          // Create notification message
+          const notificationMessage = {
+            id: CuidUtil.generate(),
+            userId: user._id,
+            type: 'announcement',
+            title: announcement.title,
+            body: announcement.body,
+            data: {
+              channels: announcement.channels,
+              data: announcement.data,
+              announcementId: announcement._id,
+            },
+            priority: announcement.priority,
+            scheduledAt: undefined,
+            retryCount: 0,
+            maxRetries: 3,
+          };
+
+          // Enqueue notification using PriorityQueueService
+          await this.priorityQueueService.enqueueNotification(notificationMessage);
+
+          this.logger.log(
+            `Notification queued for user: ${user.email} (priority: ${announcement.priority})`,
+          );
+        } catch (error) {
+          this.logger.error(`Failed to queue notification for user ${user.email}:`, error);
+        }
+      }
+
+      this.logger.log(`Notifications queued for ${targetUsers.length} users`);
+    } catch (error) {
+      this.logger.error('Error queueing notifications', error);
+      throw error;
+    }
   }
 }

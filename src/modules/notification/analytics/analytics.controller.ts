@@ -32,7 +32,7 @@ import {
 } from './analytics.service';
 
 @ApiTags('Analytics & Reporting')
-@Controller('api/v1/analytics')
+@Controller('analytics')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class AnalyticsController {

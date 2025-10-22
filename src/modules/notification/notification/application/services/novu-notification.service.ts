@@ -11,6 +11,7 @@ import { Document, Types } from 'mongoose';
 import { NotificationChannelVO } from '../../domain/value-objects/notification-channel.vo';
 import { NotificationRepositoryImpl } from '../../infrastructure/notification.repository.impl';
 import { Type } from 'class-transformer';
+import { ConfigService } from '@nestjs/config';
 
 export interface SendNotificationResult {
   success: boolean;
@@ -35,6 +36,7 @@ export class NovuNotificationService {
     private readonly novuWorkflowService: NovuWorkflowService,
     private readonly circuitBreakerService: CircuitBreakerService,
     private readonly notificationRepository: NotificationRepositoryImpl,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -200,7 +202,20 @@ export class NovuNotificationService {
    * Get workflow ID based on notification type and channel
    */
   private getWorkflowId(type: string, channel: string): string {
-    return `${type}-${channel}`;
+    // Use dynamic workflow selection based on channel
+    switch (channel.toLowerCase()) {
+      case 'push':
+        return this.configService.get('NOVU_WORKFLOW_PUSH') || 'test-push';
+      case 'email':
+        return this.configService.get('NOVU_WORKFLOW_EMAIL') || 'test-email';
+      case 'sms':
+        return this.configService.get('NOVU_WORKFLOW_SMS') || 'test-sms';
+      case 'in-app':
+      case 'inapp':
+        return this.configService.get('NOVU_WORKFLOW_IN_APP') || 'test-in-app';
+      default:
+        return this.configService.get('NOVU_WORKFLOW_PUSH') || 'test-push';
+    }
   }
 
   /**

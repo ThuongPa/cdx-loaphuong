@@ -5,6 +5,7 @@ import { Injectable, Get, Res, Logger, OnModuleInit, OnModuleDestroy } from '@ne
 import { Type } from 'class-transformer';
 import * as amqp from 'amqplib';
 import { StructuredLoggerService } from '../shared/services/structured-logger.service';
+import { NovuClient } from '../../../infrastructure/external/novu/novu.client';
 
 export interface PriorityMessage {
   id: string;
@@ -13,7 +14,7 @@ export interface PriorityMessage {
   title: string;
   body: string;
   data?: any;
-  priority: 'high' | 'normal' | 'low';
+  priority: 'urgent' | 'high' | 'normal' | 'low';
   scheduledAt?: Date;
   retryCount?: number;
   maxRetries?: number;
@@ -34,11 +35,9 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
   private readonly workers: Map<string, amqp.Channel> = new Map();
   private readonly workerStatus = new Map<string, 'idle' | 'busy'>();
   private readonly queueNames = {
-    high: 'notification.high',
-    normal: 'notification.normal',
-    low: 'notification.low',
-    retry: 'notification.retry',
-    dlq: 'notification.dlq.new',
+    main: 'priority.notification.queue',
+    retry: 'priority.notification.retry.queue',
+    dlq: 'priority.notification.dlq',
   };
   private isShuttingDown = false;
   private persistenceInterval: NodeJS.Timeout;
@@ -48,6 +47,7 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
     private readonly redisService: RedisService,
     private readonly prometheusService: PrometheusService,
     private readonly structuredLogger: StructuredLoggerService,
+    private readonly novuClient: NovuClient,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -78,27 +78,15 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
       // Initialize all queues with proper configuration
       for (const [priority, queueName] of Object.entries(this.queueNames)) {
         try {
-          // Check if queue exists first
-          const queueInfo = await channel.checkQueue(queueName);
-          if (queueInfo) {
-            this.logger.log(`Queue ${queueName} already exists, skipping creation`);
-            continue;
-          }
-        } catch (error) {
-          // Queue doesn't exist, create it
-          this.logger.log(`Queue ${queueName} doesn't exist, creating new queue`);
-        }
-
-        try {
           await channel.assertQueue(queueName, {
             durable: true,
             arguments: {
-              'x-max-priority': 10,
+              'x-max-priority': 15, // Support priority levels 0-15 for urgent/high/normal/low
               'x-message-ttl': priority === 'dlq' ? 86400000 : undefined, // 24 hours for DLQ
             },
           });
 
-          this.logger.debug(`Initialized queue: ${queueName}`);
+          this.logger.log(`Initialized queue: ${queueName}`);
         } catch (error) {
           // If it's a precondition failed error, the queue exists with different config
           if (error.code === 406) {
@@ -106,14 +94,16 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
               `Queue ${queueName} exists with different configuration, using existing queue`,
             );
           } else {
+            this.logger.error(`Failed to create queue ${queueName}:`, error);
             throw error;
           }
         }
       }
 
       await channel.close();
+      this.logger.log('Priority notification queues initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to initialize queues:', error);
+      this.logger.error('Failed to initialize priority notification queues:', error);
       throw error;
     }
   }
@@ -145,34 +135,12 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
 
   private async startWorker(workerId: string, channel: amqp.Channel): Promise<void> {
     try {
-      // Consume from high priority queue first
+      // Consume from main notification queue (priority-based)
       await channel.consume(
-        this.queueNames.high,
+        this.queueNames.main,
         async (msg: amqp.ConsumeMessage | null) => {
           if (msg) {
-            await this.processMessage(workerId, channel, msg, 'high');
-          }
-        },
-        { noAck: false },
-      );
-
-      // Consume from normal priority queue
-      await channel.consume(
-        this.queueNames.normal,
-        async (msg: amqp.ConsumeMessage | null) => {
-          if (msg) {
-            await this.processMessage(workerId, channel, msg, 'normal');
-          }
-        },
-        { noAck: false },
-      );
-
-      // Consume from low priority queue
-      await channel.consume(
-        this.queueNames.low,
-        async (msg: amqp.ConsumeMessage | null) => {
-          if (msg) {
-            await this.processMessage(workerId, channel, msg, 'low');
+            await this.processMessage(workerId, channel, msg, 'main');
           }
         },
         { noAck: false },
@@ -189,7 +157,7 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
         { noAck: false },
       );
 
-      this.logger.debug(`Worker ${workerId} started consuming messages`);
+      this.logger.debug(`Worker ${workerId} started consuming messages from priority queue`);
     } catch (error) {
       this.logger.error(`Failed to start worker ${workerId}:`, error);
     }
@@ -254,18 +222,35 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async handleNotification(message: PriorityMessage): Promise<void> {
-    // This would integrate with the actual notification sending logic
-    // For now, we'll simulate the processing
     this.logger.debug(`Handling notification: ${message.id}`, {
       userId: message.userId,
       type: message.type,
       priority: message.priority,
     });
 
-    // Simulate processing time based on priority
-    const processingTime =
-      message.priority === 'high' ? 100 : message.priority === 'normal' ? 200 : 300;
-    await new Promise((resolve) => setTimeout(resolve, processingTime));
+    try {
+      // Send notification through Novu using dynamic workflow based on channels
+      const channels = message.data?.channels || ['push'];
+      await this.novuClient.triggerWorkflow({
+        workflowId: this.novuClient.getWorkflowId(channels), // Dynamic workflow based on channel
+        recipients: [message.userId], // User ID as subscriber ID
+        payload: {
+          title: message.title,
+          body: message.body,
+          channels: channels,
+          data: message.data?.data || {},
+          announcementId: message.data?.announcementId,
+        },
+      });
+
+      this.logger.log(`Notification sent via Novu for user: ${message.userId}`, {
+        messageId: message.id,
+        priority: message.priority,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to send notification via Novu for user ${message.userId}:`, error);
+      throw error; // Re-throw to trigger retry logic
+    }
   }
 
   private async handleMessageFailure(
@@ -333,8 +318,10 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private getPriorityValue(priority: 'high' | 'normal' | 'low'): number {
+  private getPriorityValue(priority: 'urgent' | 'high' | 'normal' | 'low'): number {
     switch (priority) {
+      case 'urgent':
+        return 15;
       case 'high':
         return 10;
       case 'normal':
@@ -343,6 +330,55 @@ export class PriorityQueueService implements OnModuleInit, OnModuleDestroy {
         return 1;
       default:
         return 5;
+    }
+  }
+
+  /**
+   * Enqueue a notification message to the priority queue
+   */
+  async enqueueNotification(message: PriorityMessage): Promise<void> {
+    try {
+      // Publish to single notification queue with priority
+      const priorityValue = this.getPriorityValue(message.priority);
+
+      // Use direct channel publish with priority
+      await this.publishWithPriority(this.queueNames.main, message, priorityValue);
+
+      this.logger.log(
+        `Notification enqueued to ${this.queueNames.main} with priority ${priorityValue}`,
+        {
+          messageId: message.id,
+          userId: message.userId,
+          priority: message.priority,
+          priorityValue,
+        },
+      );
+    } catch (error) {
+      this.logger.error('Failed to enqueue notification:', error);
+      throw error;
+    }
+  }
+
+  private async publishWithPriority(
+    queueName: string,
+    message: any,
+    priority: number,
+  ): Promise<void> {
+    try {
+      const connection = await this.rabbitMQService.getConnection();
+      const channel = await connection.createChannel();
+
+      const messageBuffer = Buffer.from(JSON.stringify(message));
+
+      await channel.publish('', queueName, messageBuffer, {
+        priority: priority,
+        persistent: true,
+      });
+
+      await channel.close();
+    } catch (error) {
+      this.logger.error('Failed to publish message with priority:', error);
+      throw error;
     }
   }
 

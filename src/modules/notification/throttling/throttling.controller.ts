@@ -40,7 +40,7 @@ import {
 } from './throttling.schema';
 
 @ApiTags('Throttling & Rate Limiting')
-@Controller('api/v1/throttling')
+@Controller('throttling')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class ThrottlingController {

@@ -51,6 +51,9 @@ async function bootstrap() {
     }),
   );
 
+  // Global prefix
+  app.setGlobalPrefix('api/v1');
+
   // CORS configuration
   app.enableCors({
     origin: process.env.CORS_ORIGIN || '*',
@@ -87,9 +90,9 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .setContact('CDX Development Team', 'https://cdx.com', 'dev@cdx.com')
     .setLicense('Proprietary', 'https://cdx.com/license')
-    .addServer('https://api.cdx.com/v1', 'Production server')
-    .addServer('https://staging-api.cdx.com/v1', 'Staging server')
-    .addServer('http://localhost:3000/api/v1', 'Development server')
+    .addServer('http://localhost:3000', 'Development server')
+    .addServer('https://api.cdx.com', 'Production server')
+    .addServer('https://staging-api.cdx.com', 'Staging server')
     .addBearerAuth(
       {
         type: 'http',
@@ -117,6 +120,7 @@ async function bootstrap() {
       filter: true,
       showExtensions: true,
       showCommonExtensions: true,
+      url: '/api/docs-json',
     },
     customSiteTitle: 'CDX Notification Service API',
     customfavIcon: '/favicon.ico',

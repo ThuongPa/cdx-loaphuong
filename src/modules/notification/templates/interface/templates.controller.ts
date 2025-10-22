@@ -32,9 +32,9 @@ import {
 } from './dto/template-response.dto';
 
 @ApiTags('Admin - Templates')
-@Controller('api/v1/admin/templates')
+@Controller('admin/templates')
 @UseGuards(AdminGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('bearerAuth')
 @AdminOnly()
 export class TemplatesController {
   constructor(

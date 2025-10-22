@@ -6,7 +6,7 @@ import { HttpStatus, Controller, Get, Res, UseGuards } from '@nestjs/common';
 import { PriorityQueueService } from './priority-queue.service';
 
 @ApiTags('Priority Queue')
-@Controller('api/v1/priority-queue')
+@Controller('priority-queue')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('bearerAuth')
 export class PriorityQueueController {
