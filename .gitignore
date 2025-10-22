@@ -22,8 +22,8 @@ logs/
 .env.production.local
 
 # Config files (sensitive)
-config/
-*.env
+config/*.env
+config/development.env
 
 # IDE
 .vscode/
