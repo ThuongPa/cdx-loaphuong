@@ -60,6 +60,14 @@ export class DeviceTokenRepositoryImpl implements DeviceTokenRepository {
     return docs.map((doc) => this.toDomain(doc));
   }
 
+  async findByUserIdAndActive(userId: string, isActive: boolean): Promise<DeviceToken[]> {
+    const docs = await this.deviceTokenModel
+      .find({ userId, isActive })
+      .sort({ updatedAt: -1 })
+      .exec();
+    return docs.map((doc) => this.toDomain(doc));
+  }
+
   async findByToken(token: string): Promise<DeviceToken | null> {
     const doc = await this.deviceTokenModel.findOne({ token, isActive: true }).exec();
     return doc ? this.toDomain(doc) : null;

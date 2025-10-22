@@ -6,6 +6,7 @@ export interface DeviceTokenRepository {
   findById(id: string): Promise<DeviceToken | null>;
   findByUserAndDevice(userId: string, deviceId: string): Promise<DeviceToken | null>;
   findByUserId(userId: string): Promise<DeviceToken[]>;
+  findByUserIdAndActive(userId: string, isActive: boolean): Promise<DeviceToken[]>;
   findByToken(token: string): Promise<DeviceToken | null>;
   existsByUserPlatformDevice(userId: string, platform: string, deviceId: string): Promise<boolean>;
   softDelete(id: string): Promise<void>;

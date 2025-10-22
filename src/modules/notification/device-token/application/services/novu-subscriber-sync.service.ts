@@ -1,12 +1,17 @@
 import { NovuClient } from '../../../../../infrastructure/external/novu/novu.client';
 import { DeviceToken } from '../../domain/device-token.entity';
-import { Injectable, Get, Logger } from '@nestjs/common';
+import { DeviceTokenRepository } from '../../domain/device-token.repository';
+import { Injectable, Get, Logger, Inject } from '@nestjs/common';
 
 @Injectable()
 export class NovuSubscriberSyncService {
   private readonly logger = new Logger(NovuSubscriberSyncService.name);
 
-  constructor(private readonly novuClient: NovuClient) {}
+  constructor(
+    private readonly novuClient: NovuClient,
+    @Inject('DeviceTokenRepository')
+    private readonly deviceTokenRepository: DeviceTokenRepository,
+  ) {}
 
   /**
    * Create or update subscriber in Novu when device token is registered
@@ -19,11 +24,11 @@ export class NovuSubscriberSyncService {
       const existingSubscriber = await this.getSubscriberSafely(deviceToken.userId);
 
       if (existingSubscriber) {
-        // Update existing subscriber with new device token info
+        // Update existing subscriber with ALL active device tokens
         await this.updateSubscriberWithDeviceToken(deviceToken);
       } else {
-        // Create new subscriber
-        await this.createSubscriberWithDeviceToken(deviceToken);
+        // Create new subscriber with ALL active device tokens
+        await this.createSubscriberWithAllActiveTokens(deviceToken.userId);
       }
 
       this.logger.log(`Successfully synced subscriber for token: ${deviceToken.id}`);
@@ -108,40 +113,19 @@ export class NovuSubscriberSyncService {
     const currentSubscriber = await this.getSubscriberSafely(deviceToken.userId);
 
     if (!currentSubscriber) {
-      // If subscriber doesn't exist, create it
-      await this.createSubscriberWithDeviceToken(deviceToken);
+      // If subscriber doesn't exist, create it with all active tokens
+      await this.createSubscriberWithAllActiveTokens(deviceToken.userId);
       return;
     }
 
-    // Get existing device tokens
-    const existingTokens = currentSubscriber.data?.deviceTokens || [];
+    // Get all active device tokens for this user from database
+    const allActiveTokens = await this.getAllActiveDeviceTokens(deviceToken.userId);
 
-    // Update or add the device token
-    const tokenIndex = existingTokens.findIndex((token: any) => token.id === deviceToken.id);
-
-    const updatedToken = {
-      id: deviceToken.id,
-      token: deviceToken.token,
-      platform: deviceToken.platform.value,
-      provider: deviceToken.provider.value,
-      deviceId: deviceToken.deviceId,
-      isActive: deviceToken.isActive,
-      lastUsedAt: deviceToken.lastUsedAt,
-    };
-
-    if (tokenIndex >= 0) {
-      // Update existing token
-      existingTokens[tokenIndex] = updatedToken;
-    } else {
-      // Add new token
-      existingTokens.push(updatedToken);
-    }
-
-    // Update subscriber with new device tokens
+    // Update subscriber with all active device tokens
     const updateData = {
       data: {
         ...currentSubscriber.data,
-        deviceTokens: existingTokens,
+        deviceTokens: allActiveTokens,
         lastTokenUpdate: new Date().toISOString(),
       },
     };
@@ -183,6 +167,49 @@ export class NovuSubscriberSyncService {
         return null;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Create subscriber with all active device tokens for the user
+   */
+  private async createSubscriberWithAllActiveTokens(userId: string): Promise<void> {
+    const allActiveTokens = await this.getAllActiveDeviceTokens(userId);
+
+    const subscriberData = {
+      subscriberId: userId,
+      data: {
+        deviceTokens: allActiveTokens,
+        lastTokenUpdate: new Date().toISOString(),
+      },
+    };
+
+    await this.novuClient.createSubscriber(subscriberData);
+  }
+
+  /**
+   * Get all active device tokens for a user from database
+   */
+  private async getAllActiveDeviceTokens(userId: string): Promise<any[]> {
+    try {
+      // Get all active device tokens for the user
+      const activeTokens = await this.deviceTokenRepository.findByUserIdAndActive(userId, true);
+
+      this.logger.log(`Found ${activeTokens.length} active device tokens for user ${userId}`);
+
+      // Convert to Novu format
+      return activeTokens.map((token) => ({
+        id: token.id,
+        token: token.token,
+        platform: token.platform.value,
+        provider: token.provider.value,
+        deviceId: token.deviceId,
+        isActive: token.isActive,
+        lastUsedAt: token.lastUsedAt,
+      }));
+    } catch (error) {
+      this.logger.error(`Failed to get active device tokens for user ${userId}: ${error.message}`);
+      return [];
     }
   }
 }
