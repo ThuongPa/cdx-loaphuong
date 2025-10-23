@@ -150,7 +150,7 @@ export class BroadcastNotificationService {
       return {
         id: notificationId,
         _id: notificationId,
-        userId: user.userId,
+        userId: user._id, // Use _id instead of user.userId
         notificationId: announcement._id,
         title: announcement.title,
         body: announcement.body,
@@ -184,7 +184,7 @@ export class BroadcastNotificationService {
           // Create notification message
           const notificationMessage = {
             id: CuidUtil.generate(),
-            userId: user.userId,
+            userId: user._id, // Use _id instead of user.userId
             type: 'announcement',
             title: announcement.title,
             body: announcement.body,
