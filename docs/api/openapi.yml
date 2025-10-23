@@ -30,10 +30,12 @@ info:
     url: https://cdx.com/license
 
 servers:
+  - url: ${BASE_URL}
+    description: Production server
   - url: http://localhost:3000
     description: Development server
   - url: https://api.cdx.com
-    description: Production server
+    description: CDX Production server
   - url: https://staging-api.cdx.com
     description: Staging server
 
