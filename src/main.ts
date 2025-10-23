@@ -153,10 +153,10 @@ async function bootstrap() {
   //   version: process.env.npm_package_version || '1.0.0',
   // });
 
-  logger.log(`Application is running on: http://localhost:${port}`);
-  logger.log(`Swagger documentation: http://localhost:${port}/api/docs`);
-  logger.log(`Health check: http://localhost:${port}/monitoring/health`);
-  logger.log(`Metrics: http://localhost:${port}/monitoring/metrics`);
+  logger.log(`Application is running on: ${baseUrl}`);
+  logger.log(`Swagger documentation: ${baseUrl}/api/docs`);
+  logger.log(`Health check: ${baseUrl}/monitoring/health`);
+  logger.log(`Metrics: ${baseUrl}/monitoring/metrics`);
 }
 
 bootstrap();
