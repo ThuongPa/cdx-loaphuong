@@ -61,13 +61,22 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   // CORS configuration
+  const corsOrigin = process.env.CORS_ORIGIN || '*';
+  const allowedOrigins =
+    corsOrigin === '*' ? '*' : corsOrigin.split(',').map((origin) => origin.trim());
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Correlation-ID'],
   });
 
   // Swagger documentation
+  const port = process.env.PORT || 3000;
+  const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
+  const isProduction = process.env.NODE_ENV === 'production';
+
   const config = new DocumentBuilder()
     .setTitle('CDX Loap Huong Notification Service API')
     .setDescription(
@@ -96,9 +105,7 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .setContact('CDX Development Team', 'https://cdx.com', 'dev@cdx.com')
     .setLicense('Proprietary', 'https://cdx.com/license')
-    .addServer('http://localhost:3000', 'Development server')
-    .addServer('https://api.cdx.com', 'Production server')
-    .addServer('https://staging-api.cdx.com', 'Staging server')
+    .addServer(baseUrl, isProduction ? 'Production server' : 'Development server')
     .addBearerAuth(
       {
         type: 'http',
@@ -136,7 +143,6 @@ async function bootstrap() {
     `,
   });
 
-  const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
 
   // Log application startup
