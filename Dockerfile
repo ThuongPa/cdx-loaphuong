@@ -16,6 +16,9 @@ RUN npm install --legacy-peer-deps
 # Copy source code
 COPY . .
 
+# Ensure config directory exists
+RUN mkdir -p config
+
 # Build the application
 RUN npm run build
 
@@ -40,7 +43,8 @@ RUN npm install --only=production --legacy-peer-deps && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy necessary config files
+# Create config directory and copy files
+RUN mkdir -p config
 COPY --from=builder /app/config ./config
 COPY --from=builder /app/scripts ./scripts
 
