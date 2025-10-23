@@ -17,7 +17,7 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 # Build the application
-RUN pnpm run build
+RUN npm run build
 
 # Production stage
 FROM node:18-alpine AS production
