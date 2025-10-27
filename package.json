@@ -1,7 +1,7 @@
 {
-  "name": "notification-service",
+  "name": "cdx-notifi-service",
   "version": "1.0.0",
-  "description": "Notification Service for CDX Loap Huong",
+  "description": "Notification Service for CDX",
   "author": "CDX Development Team",
   "private": true,
   "license": "UNLICENSED",
